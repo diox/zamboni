@@ -95,6 +95,14 @@ class TestWebapp(amo.tests.TestCase):
         for attr in ('slug', 'app_slug', 'app_domain'):
             eq_(getattr(post_mortem[0], attr), None)
 
+    def test_soft_deleted_no_current_version(self):
+        waffle.models.Switch.objects.create(name='soft_delete', active=True)
+        webapp = amo.tests.app_factory()
+        webapp._current_version = None
+        webapp.save()
+        webapp.delete()
+        eq_(webapp.current_version, webapp.latest_version)
+
     def test_soft_deleted_valid(self):
         w = Webapp.objects.create(status=amo.STATUS_PUBLIC)
         Webapp.objects.create(status=amo.STATUS_DELETED)
