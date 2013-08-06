@@ -12,8 +12,8 @@ from mkt.webapps.models import Webapp
 
 from .authorization import PublisherAuthorization
 from .constants import COLLECTIONS_TYPE_BASIC
-from .models import Collection
-from .serializers import CollectionSerializer
+from .models import Collection, Page
+from .serializers import CollectionSerializer, PageSerializer
 
 
 class CollectionViewSet(CORSViewSet, viewsets.ModelViewSet):
@@ -62,3 +62,37 @@ class CollectionViewSet(CORSViewSet, viewsets.ModelViewSet):
             raise exceptions.ParseError(
                 detail='`app` already exists in collection.')
         return self.return_updated(status.HTTP_201_CREATED)
+
+
+class PageViewSet(viewsets.ModelViewSet):
+    serializer_class = PageSerializer
+    queryset = Page.objects.all()
+    permission_classes = [PublisherAuthorization]  # FIXME
+    authentication_classes = [RestOAuthAuthentication,
+                              RestAnonymousAuthentication]
+
+    collection_type = COLLECTIONS_TYPE_BASIC
+
+    @action()
+    def add_collection(self, request, pk=None):
+        """
+        Add an collection to the specified page.
+        """
+        page = self.get_object()
+        try:
+            collection_id = request.DATA['collection']
+            new_collection = Collection.objects.get(pk=collection_id)
+        except MultiValueDictKeyError:
+            raise exceptions.ParseError(
+                detail='`collection` was not provided.')
+        except Collection.DoesNotExist:
+            raise exceptions.ParseError(detail='`collection` does not exist.')
+        try:
+            page.add_collection(new_collection)
+        except IntegrityError:
+            raise exceptions.ParseError(
+                detail='`collection` already exists in page.')
+
+        # Return the page object.
+        serializer = self.get_serializer(instance=page)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)

@@ -10,7 +10,7 @@ from mkt.api.base import AppRouter, handle_500, SlugRouter
 from mkt.api.resources import (AppResource, CarrierResource, CategoryViewSet,
                                ConfigResource, error_reporter,
                                RefreshManifestViewSet, RegionResource)
-from mkt.collections.views import CollectionViewSet
+from mkt.collections.views import CollectionViewSet, PageViewSet
 from mkt.features.views import AppFeaturesList
 from mkt.stats.api import GlobalStatsResource
 from mkt.ratings.resources import RatingResource
@@ -30,6 +30,8 @@ api.register(RatingResource())
 rocketfuel = SimpleRouter()
 rocketfuel.register(r'collections', CollectionViewSet,
                     base_name='collections')
+rocketfuel.register(r'pages', PageViewSet,
+                    base_name='pages')
 
 apps = SlugRouter()
 apps.register(r'category', CategoryViewSet, base_name='app-category')

@@ -10,3 +10,13 @@ COLLECTION_TYPES = (
     (COLLECTIONS_TYPE_FEATURED, _lazy(u'Featured App List')),
     (COLLECTIONS_TYPE_OPERATOR, _lazy(u'Operator Shelf')),
 )
+
+PAGE_TYPE_HOMESCREEN = 0
+PAGE_TYPE_OPERATORSHELF = 1
+PAGE_TYPE_CATEGORY = 2
+
+PAGE_TYPES = (
+    (PAGE_TYPE_HOMESCREEN, _lazy(u'Homescreen')),
+    (PAGE_TYPE_OPERATORSHELF, _lazy(u'Operator Shelf')),
+    (PAGE_TYPE_CATEGORY, _lazy(u'Category')),
+)
