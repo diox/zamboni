@@ -13,7 +13,9 @@ import amo.tests
 import mkt
 from addons.models import Category
 from mkt.api.tests.test_oauth import RestOAuth
-from mkt.collections.constants import COLLECTIONS_TYPE_BASIC
+from mkt.collections.constants import (COLLECTIONS_TYPE_BASIC,
+                                       COLLECTIONS_TYPE_FEATURED,
+                                       COLLECTIONS_TYPE_OPERATOR)
 from mkt.collections.models import Collection
 from mkt.collections.serializers import CollectionSerializer
 from mkt.collections.views import CollectionViewSet
@@ -306,6 +308,44 @@ class TestCollectionViewSet(RestOAuth):
         ok_(new_collection.pk != self.collection.pk)
         eq_(new_collection.author, '')
 
+    def test_create_featured_duplicate(self):
+        self.make_publisher()
+        # Featured Apps & Operator Shelf should not have duplicates for a
+        # region / carrier / category combination. Make sure this is respected
+        # when editing a collection.
+        cat = Category.objects.create(type=amo.ADDON_WEBAPP, name='Grumpy',
+                                      slug='grumpy-cat')
+        featured_data = {
+            'collection_type': COLLECTIONS_TYPE_FEATURED,
+            'description': 'Featured Apps for Spain Telefonica, all categories',
+            'name': 'Featured Apps are cool',
+            'region': mkt.regions.SPAIN.id,
+            'carrier': mkt.carriers.TELEFONICA.id,
+            'category': cat,
+        }
+        self.collection_featured = Collection.objects.create(**featured_data)
+
+        self.collection_data.update({
+            'collection_type': featured_data['collection_type'],
+            'region': featured_data['region'],
+            'carrier': featured_data['carrier'],
+            'category': featured_data['category'].pk
+        })
+
+        # Try to create a new collection with the duplicate data from our 
+        # featured collection.
+        res, data = self.create(self.client)
+        eq_(res.status_code, 400)
+        ok_('collection_uniqueness' in data)
+
+        # Try to create a new collection with the duplicate data from our
+        # featured collection, this time changing the category.
+        nyan = Category.objects.create(type=amo.ADDON_WEBAPP, name='Nyan Cat',
+                                      slug='nyan-cat')
+        self.collection_data['category'] = nyan.pk
+        res, data = self.create(self.client)
+        eq_(res.status_code, 201)
+
     def add_app(self, client, app_id=None):
         if app_id is None:
             app_id = self.apps[0].pk
@@ -488,6 +528,76 @@ class TestCollectionViewSet(RestOAuth):
         updates = {'category': 1}
         res, data = self.edit_collection(self.client, **updates)
         eq_(res.status_code, 400)
+
+    def test_edit_collection_featured_duplicate(self):
+        self.make_publisher()
+        # Featured Apps & Operator Shelf should not have duplicates for a
+        # region / carrier / category combination. Make sure this is respected
+        # when editing a collection.
+        collection_data = {
+            'collection_type': COLLECTIONS_TYPE_FEATURED,
+            'description': 'Featured Apps for Spain Telefonica, all categories',
+            'name': 'Featured Apps are cool',
+            'region': mkt.regions.SPAIN.id,
+            'carrier': mkt.carriers.TELEFONICA.id,
+        }
+        Collection.objects.create(**collection_data)
+
+        update_data = {
+            'collection_type': collection_data['collection_type'],
+            'region': collection_data['region'],
+            'carrier': collection_data['carrier'],
+        }
+
+        # Try to edit self.collection with the duplicate data from our featured
+        # collection.
+        res, data = self.edit_collection(self.client, **update_data)
+        eq_(res.status_code, 400)
+        ok_('collection_uniqueness' in data)
+
+        # Try to edit self.collection with the duplicate data from our featured
+        # collection, this time changing the collection_type.
+        update_data['collection_type'] = COLLECTIONS_TYPE_OPERATOR
+        res, data = self.edit_collection(self.client, **update_data)
+        eq_(res.status_code, 200)
+
+    def test_edit_collection_operator_shelf_duplicate(self):
+        self.make_publisher()
+        # Featured Apps & Operator Shelf should not have duplicates for a
+        # region / carrier / category combination. Make sure this is respected
+        # when editing a collection.
+        cat = Category.objects.create(type=amo.ADDON_WEBAPP, name='Grumpy',
+                                      slug='grumpy-cat')
+        collection_data = {
+            'collection_type': COLLECTIONS_TYPE_OPERATOR,
+            'description': 'Featured Apps for Spain Telefonica, all categories',
+            'name': 'Featured Apps are cool',
+            'region': mkt.regions.SPAIN.id,
+            'carrier': mkt.carriers.TELEFONICA.id,
+            'category': cat,
+        }
+        Collection.objects.create(**collection_data)
+
+        update_data = {
+            'collection_type': collection_data['collection_type'],
+            'region': collection_data['region'],
+            'carrier': collection_data['carrier'],
+            'category': collection_data['category'].pk
+        }
+
+        # Try to edit self.collection with the duplicate data from our operator
+        # collection.
+        res, data = self.edit_collection(self.client, **update_data)
+        eq_(res.status_code, 400)
+        ok_('collection_uniqueness' in data)
+
+        # Try to edit self.collection with the duplicate data from our operator
+        # collection, this time changing the category.
+        nyan = Category.objects.create(type=amo.ADDON_WEBAPP, name='Nyan Cat',
+                                      slug='nyan-cat')
+        update_data['category'] = nyan.pk
+        res, data = self.edit_collection(self.client, **update_data)
+        eq_(res.status_code, 200)
 
     def reorder(self, client, order=None):
         if order is None:
