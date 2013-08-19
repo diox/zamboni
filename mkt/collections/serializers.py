@@ -31,7 +31,7 @@ class CollectionSerializer(serializers.ModelSerializer):
         #
         # Sadly, this can't be expressed as a db-level unique constaint,
         # because this doesn't apply to basic collections.
-
+        #
         # We have to do it  ourselves, and we need the rest of the validation
         # to have already taken place, and have the incoming data and original
         # data from existing instance if it's an edit, so full_clean() is the
