@@ -197,8 +197,14 @@ class TestCollectionViewSet(TestCollectionViewSetMixin, RestOAuth):
 
         self.collection.update(region=mkt.regions.PL.id)
 
-        res = self.client.get(self.list_url,
-                              {'region': mkt.regions.SPAIN.slug})
+        # Add some apps in self.collection2, and a region exclusion for the
+        # first one, which should exclude it from the results.
+        for app in self.apps:
+            self.collection2.add_app(app)
+        self.apps[0].addonexcludedregion.create(region=mkt.regions.SPAIN.id)
+
+        res = self.client.get(self.list_url, {'region': mkt.regions.SPAIN.slug})
+
         eq_(res.status_code, 200)
         data = json.loads(res.content)
         collections = data['objects']
@@ -206,6 +212,7 @@ class TestCollectionViewSet(TestCollectionViewSetMixin, RestOAuth):
         eq_(collections[0]['id'], self.collection4.id)
         eq_(collections[1]['id'], self.collection2.id)
         ok_('API-Fallback' not in res)
+        eq_(len(collections[1]['apps']), len(self.apps) - 1)
 
     def test_listing_filtering_region_id(self):
         self.create_additional_data()
@@ -213,8 +220,13 @@ class TestCollectionViewSet(TestCollectionViewSetMixin, RestOAuth):
 
         self.collection.update(region=mkt.regions.PL.id)
 
-        res = self.client.get(self.list_url,
-                              {'region': mkt.regions.SPAIN.id})
+        # Add some apps in self.collection2, and a region exclusion for the
+        # first one, which should exclude it from the results.
+        for app in self.apps:
+            self.collection2.add_app(app)
+        self.apps[0].addonexcludedregion.create(region=mkt.regions.SPAIN.id)
+
+        res = self.client.get(self.list_url, {'region': mkt.regions.SPAIN.id})
         eq_(res.status_code, 200)
         data = json.loads(res.content)
         collections = data['objects']
@@ -222,6 +234,7 @@ class TestCollectionViewSet(TestCollectionViewSetMixin, RestOAuth):
         eq_(collections[0]['id'], self.collection4.id)
         eq_(collections[1]['id'], self.collection2.id)
         ok_('API-Fallback' not in res)
+        eq_(len(collections[1]['apps']), len(self.apps) - 1)
 
     def test_listing_filtering_carrier(self):
         self.create_additional_data()

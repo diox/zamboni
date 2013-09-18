@@ -44,21 +44,49 @@ class CollectionMembershipField(serializers.RelatedField):
         return AppResource().full_dehydrate(bundle).data
 
     def field_to_native(self, obj, field_name):
+
+        def filter_on_region(membership):
+            return region not in membership.app.get_excluded_region_ids()
+
         value = get_component(obj, self.source)
 
-        # Filter apps based on feature profiles.
+        # If we have a request in context, we try to extract signature and
+        # region for filtering purposes.
         if hasattr(self, 'context') and 'request' in self.context:
-            sig = self.context['request'].GET.get('pro')
-            if sig:
-                try:
-                    profile = FeatureProfile.from_signature(sig)
-                except ValueError:
-                    pass
-                else:
-                    value = value.filter(**profile.to_kwargs(
-                        prefix='app___current_version__features__has_'))
+            request = self.context['request']
+            signature = request.GET.get('pro')
+            region = request.GET.get('region')
+            if isinstance(region, basestring):
+                if not region.isdigit():
+                    # We want the region id to compute exclusions, not the slug.
+                    region = mkt.regions.REGIONS_DICT.get(region, None)
+                    if region:
+                        region = region.id
+        else:
+            region = signature = None
 
-        return [self.to_native(item) for item in value.all()]
+        # Filter apps based on feature profiles.
+        if signature:
+            try:
+                profile = FeatureProfile.from_signature(signature)
+            except ValueError:
+                pass
+            else:
+                value = value.filter(**profile.to_kwargs(
+                    prefix='app___current_version__features__has_'))
+
+        # Build final queryset.
+        memberships = value.all()
+
+        # Filter apps based on region exclusions (needs to be done after
+        # queryset has been evaluated, as it relies on a method on the Webapp
+        # model).
+        if region:
+            region = int(region)
+            memberships = filter(filter_on_region, memberships)
+
+        # Serialize all apps in the result.
+        return [self.to_native(membership) for membership in memberships]
 
 
 class HyperlinkedRelatedOrNullField(serializers.HyperlinkedRelatedField):
