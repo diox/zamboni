@@ -26,7 +26,8 @@ from users.models import UserProfile
 
 from .authorization import (CanBeHeroAuthorization, CuratorAuthorization,
                             StrictCuratorAuthorization)
-from .filters import CollectionFilterSetWithFallback
+from .filters import (CollectionFilterSet, CollectionFilterSetWithAllFallbacks,
+                      CollectionFilterSetWithFallback)
 from .models import Collection
 from .serializers import (CollectionMembershipField, CollectionSerializer,
                           CuratorSerializer)
@@ -59,9 +60,41 @@ class CollectionViewSet(CORSMixin, SlugOrIdMixin, viewsets.ModelViewSet):
         self.filter_errors = getattr(queryset, 'filter_errors', None)
         return queryset
 
+    def get_fallbacks_queryset(self, request):
+        old_filter_class = self.filter_class
+        self.filter_class = CollectionFilterSetWithAllFallbacks
+        queryset = self.filter_queryset(self.get_queryset())
+        self.filter_class = old_filter_class
+        return queryset
+
     def list(self, request, *args, **kwargs):
-        response = super(CollectionViewSet, self).list(
-            request, *args, **kwargs)
+        """
+        Custom list implementation to be able to play with the fallback
+        mechanism.
+
+        - If 'show_fallback' is passed as a GET query param, then the fallback
+          mechanism will be disabled for the current query. Instead, the
+          response will contain an additional list of collections corresponding
+          to all possible fallback combinations for the query.
+
+        - Otherwise, proceed as normal, and if a fallback was used, add a
+          header in the response with the fields we had to NULL.
+        """
+        if request.method == 'GET' and 'show_fallback' in self.request.GET:
+            # Disable fallback mechanism for the 'main' queryset.
+            self.filter_class = CollectionFilterSet
+            response = super(CollectionViewSet, self).list(
+                request, *args, **kwargs)
+            # Build the extra collections list containing fallback
+            # possibilities, serialize it and append it to the response data.
+            fallbacks_collections = self.get_fallbacks_queryset(request)
+            response.data['fallback_collections'] = self.get_serializer(
+                fallbacks_collections, many=True).data
+        else:
+            # Normal flow, return fallback in a header if we used one.
+            response = super(CollectionViewSet, self).list(
+                request, *args, **kwargs)
+
         if response:
             filter_fallback = getattr(self, 'filter_fallback', None)
             if filter_fallback:
@@ -85,17 +118,12 @@ class CollectionViewSet(CORSMixin, SlugOrIdMixin, viewsets.ModelViewSet):
         Custom get_object implementation to prevent DRF from filtering when we
         do a specific pk/slug/etc lookup (we only want filtering on list API).
 
-        Calls DRF's get_object() with the queryset (filtered or not), since DRF
-        get_object() implementation will then just use the queryset without
-        attempting to filter it.
+        Calls DRF's get_object() with the already instantiated, non-filtered
+        queryset - since DRF get_object() implementation will then just use
+        the queryset directly without attempting to filter it.
         """
         if queryset is None:
             queryset = self.get_queryset()
-        if (self.pk_url_kwarg not in self.kwargs and
-            self.slug_url_kwarg not in self.kwargs and
-            self.lookup_field not in self.kwargs):
-            # Only filter queryset if we don't have an explicit lookup.
-            queryset = self.filter_queryset(queryset)
         return super(CollectionViewSet, self).get_object(queryset=queryset)
 
     def get_queryset(self):

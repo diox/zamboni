@@ -1,5 +1,6 @@
 from django import forms
 from django.core.validators import EMPTY_VALUES
+from django.db.models import Q
 
 from django_filters.filters import ChoiceFilter, ModelChoiceFilter
 from django_filters.filterset import FilterSet
@@ -9,6 +10,15 @@ import mkt
 from addons.models import Category
 from mkt.api.forms import SluggableModelChoiceField
 from mkt.collections.models import Collection
+
+
+# Combinations of fields to try to set to NULL, in order, when no results
+# are found. See `CollectionFilterSetWithFallback.next_fallback()`.
+FIELDS_FALLBACK_ORDER = (
+    ('region',),
+    ('carrier',),
+    ('region', 'carrier',)
+)
 
 
 class SlugChoiceFilter(ChoiceFilter):
@@ -21,7 +31,7 @@ class SlugChoiceFilter(ChoiceFilter):
 
         return super(SlugChoiceFilter, self).__init__(*args, **kwargs)
 
-    def filter(self, qs, value):
+    def filter_data(self, value):
         if value == '' or value is None:
             value = None
         elif not value.isdigit():
@@ -30,14 +40,20 @@ class SlugChoiceFilter(ChoiceFilter):
             value = self.choices_dict.get(value, None)
             if value is not None:
                 value = value.id
-        return qs.filter(**{self.name: value})
+        return {self.name: value}
+
+    def filter(self, qs, value):
+        return qs.filter(**self.filter_data(value))
 
 
 class SlugModelChoiceFilter(ModelChoiceFilter):
     field_class = SluggableModelChoiceField
 
+    def filter_data(self, value):
+        return {'%s__%s' % (self.name, self.lookup_type): value}
+
     def filter(self, qs, value):
-        return qs.filter(**{'%s__%s' % (self.name, self.lookup_type): value})
+        return qs.filter(**self.filter_data(value))
 
 
 class CollectionFilterSet(FilterSet):
@@ -123,14 +139,7 @@ class CollectionFilterSetWithFallback(CollectionFilterSet):
     FilterSet with a fallback mechanism, dropping filters in a certain order
     if no results are found.
     """
-
-    # Combinations of fields to try to set to NULL, in order, when no results
-    # are found. See `next_fallback()`.
-    fields_fallback_order = (
-        ('region',),
-        ('carrier',),
-        ('region', 'carrier',)
-    )
+    fields_fallback_order = FIELDS_FALLBACK_ORDER
 
     def next_fallback(self):
         """
@@ -186,3 +195,32 @@ class CollectionFilterSetWithFallback(CollectionFilterSet):
         self._qs.filter_fallback = self.fields_to_null
         return self._qs
 
+
+class CollectionFilterSetWithAllFallbacks(CollectionFilterSet):
+    """
+    Special FilterSet that uses the fallback mechanism to return all
+    collections corresponding to every fallbacks combination for the given
+    query.
+    """
+    def get_queryset(self):
+        valid = self.is_bound and self.form.is_valid()
+
+        if not valid:
+            return self.queryset.none()
+
+        q = Q()
+        for variant in FIELDS_FALLBACK_ORDER:
+            subquery = Q()
+            for name, filter_ in self.filters.items():
+                if name in self.form.data:
+                    if name in variant:
+                        value = None
+                    else:
+                        value = self.form.cleaned_data[name]
+                else:
+                    continue
+
+                # At this point we should have valid & clean data.
+                subquery &= Q(**filter_.filter_data(value))
+            q |= subquery
+            return self.queryset.filter(q)
