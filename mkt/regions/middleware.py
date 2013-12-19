@@ -20,6 +20,11 @@ class RegionMiddleware(object):
                 return region.slug
         return mkt.regions.WORLDWIDE.slug
 
+    def process_response(self, request, response):
+        if getattr(request, 'API', False) and response.status_code < 500:
+            response['API-Geo'] = request.REGION.slug
+        return response
+
     def process_request(self, request):
         regions = mkt.regions.REGIONS_DICT
 
@@ -51,7 +56,7 @@ class RegionMiddleware(object):
                             reg = region.slug
                             break
                 # All else failed, try to match against our forced Language.
-                if reg == mkt.regions.WORLDWIDE.slug:
+                if reg == worldwide:
                     # Try to find a suitable region.
                     for name, region in choices:
                         if region.default_language == request.LANG:
@@ -62,7 +67,7 @@ class RegionMiddleware(object):
                 if (reg == 'us' and a_l is not None
                     and not a_l.startswith('en')):
                     # Let us default to worldwide if it's not English.
-                    reg = mkt.regions.WORLDWIDE.slug
+                    reg = worldwide
             else:
                 statsd.incr('z.regions.middleware.source.geoip')
 

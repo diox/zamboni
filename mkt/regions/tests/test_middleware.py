@@ -21,32 +21,42 @@ class TestRegionMiddleware(amo.tests.TestCase):
 
     def test_lang_set_with_region(self):
         for region in ('worldwide', 'us', 'br'):
-            r = self.client.get('/robots.txt?region=%s' % region)
+            res = self.client.get('/robots.txt?region=%s' % region)
             if region == 'worldwide':
                 # Set cookie for first time only.
-                eq_(r.cookies['lang'].value, settings.LANGUAGE_CODE + ',')
+                eq_(res.cookies['lang'].value, settings.LANGUAGE_CODE + ',')
             else:
-                eq_(r.cookies.get('lang'), None)
-            eq_(r.context['request'].LANG, settings.LANGUAGE_CODE)
+                eq_(res.cookies.get('lang'), None)
+            eq_(res.context['request'].LANG, settings.LANGUAGE_CODE)
+            ok_(not res.has_header('API-Geo'))  # Not in API, no header.
 
     def test_no_api_cookie(self):
-        res = self.client.get('/api/v1/apps/schema/?region=worldwide')
+        res = self.client.get('/api/v1/services/config/site/?region=worldwide')
         ok_(not res.cookies)
+        eq_(res['API-Geo'], 'worldwide')
+
+    @mock.patch('mkt.regions.set_region')
+    def test_outside_api(self, set_region):
+        res = self.client.get('/developers/')
+        ok_(not res.has_header('API-Geo'))
+        set_region.assert_called_with(mkt.regions.WORLDWIDE.slug)
 
     @mock.patch('mkt.regions.set_region')
     def test_accept_good_region(self, set_region):
         for region, region_cls in mkt.regions.REGIONS_CHOICES:
-            self.client.get('/api/v1/apps/?region=%s' % region)
+            res = self.client.get('/api/v1/apps/?region=%s' % region)
             set_region.assert_called_with(region_cls.slug)
+            eq_(res['API-Geo'], region_cls.slug)
 
     @mock.patch('mkt.regions.set_region')
     def test_ignore_bad_region(self, set_region):
         # When no region is specified or the region is invalid, we use
         # whichever region satisfies `Accept-Language`.
         for region in ('', 'BR', '<script>alert("ballin")</script>'):
-            self.client.get('/api/v1/apps/?region=%s' % region,
-                            HTTP_ACCEPT_LANGUAGE='fr')
+            url = '/api/v1/services/config/site/?region=%s' % region
+            res = self.client.get(url, HTTP_ACCEPT_LANGUAGE='fr')
             set_region.assert_called_with(mkt.regions.WORLDWIDE.slug)
+            eq_(res['API-Geo'], 'worldwide')
 
     @mock.patch('mkt.regions.middleware.RegionMiddleware.region_from_request')
     @mock.patch('mkt.regions.set_region')
@@ -70,15 +80,18 @@ class TestRegionMiddleware(amo.tests.TestCase):
             ('es-PE', 'es'),
         ]
         for locale, expected in locales:
-            self.client.get('/api/v1/apps/', HTTP_ACCEPT_LANGUAGE=locale)
+            res = self.client.get('/api/v1/services/config/site/',
+                                  HTTP_ACCEPT_LANGUAGE=locale)
             set_region.assert_called_with(expected)
+            eq_(res['API-Geo'], expected)
 
     @mock.patch('mkt.regions.set_region')
     @mock.patch('mkt.regions.middleware.RegionMiddleware.region_from_request')
     def test_url_param_override(self, mock_rfr, set_region):
-        self.client.get('/api/v1/apps/?region=br')
+        res = self.client.get('/api/v1/services/config/site/?region=br')
         set_region.assert_called_with('br')
-        assert not mock_rfr.called
+        ok_(not mock_rfr.called)
+        eq_(res['API-Geo'], 'br')
 
     @mock.patch('mkt.regions.set_region')
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'worldwide')
@@ -88,17 +101,21 @@ class TestRegionMiddleware(amo.tests.TestCase):
         # Use 'sa-US' as the language to defeat the lanugage sniffer
         # Note: This may be problematic should we ever offer
         # apps in US specific derivation of SanskritRight.
-        self.client.get('/api/v1/apps/', HTTP_ACCEPT_LANGUAGE='sa-US')
+        res = self.client.get('/api/v1/services/config/site/',
+                              HTTP_ACCEPT_LANGUAGE='sa-US')
         set_region.assert_called_with('worldwide')
+        eq_(res['API-Geo'], 'worldwide')
 
     @mock.patch('mkt.regions.middleware.GeoIP.lookup')
     @mock.patch('mkt.regions.set_region')
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'worldwide')
     def test_geoip_lookup_available(self, set_region, mock_lookup):
-        lang = 'br'
-        mock_lookup.return_value = lang
-        self.client.get('/api/v1/apps/', HTTP_ACCEPT_LANGUAGE='sa-US')
-        set_region.assert_called_with(lang)
+        country = 'br'
+        mock_lookup.return_value = country
+        res = self.client.get('/api/v1/services/config/site/',
+                              HTTP_ACCEPT_LANGUAGE='sa-US')
+        set_region.assert_called_with(country)
+        eq_(res['API-Geo'], country)
 
     @mock.patch('mkt.regions.middleware.GeoIP.lookup')
     @mock.patch('mkt.regions.set_region')
@@ -106,24 +123,30 @@ class TestRegionMiddleware(amo.tests.TestCase):
     def test_geoip_lookup_unavailable_fall_to_accept_lang(self, set_region,
                                                           mock_lookup):
         mock_lookup.return_value = 'worldwide'
-        self.client.get('/api/v1/apps/', HTTP_ACCEPT_LANGUAGE='pt-BR')
+        res = self.client.get('/api/v1/services/config/site/',
+                              HTTP_ACCEPT_LANGUAGE='pt-BR')
         set_region.assert_called_with('br')
+        eq_(res['API-Geo'], 'br')
 
     @mock.patch('mkt.regions.middleware.GeoIP.lookup')
     @mock.patch('mkt.regions.set_region')
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'worldwide')
     def test_geoip_lookup_unavailable(self, set_region, mock_lookup):
-        lang = 'zz'
-        mock_lookup.return_value = lang
-        self.client.get('/api/v1/apps/', HTTP_ACCEPT_LANGUAGE='sa-US')
+        country = 'zz'
+        mock_lookup.return_value = country
+        res = self.client.get('/api/v1/services/config/site/',
+                              HTTP_ACCEPT_LANGUAGE='sa-US')
         set_region.assert_called_with('worldwide')
+        eq_(res['API-Geo'], 'worldwide')
 
     @mock.patch('mkt.regions.set_region')
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'us')
     def test_geoip_missing_lang(self, set_region):
         """ Test for US region """
-        self.client.get('/api/v1/apps/', REMOTE_ADDR='mozilla.com')
+        res = self.client.get('/api/v1/services/config/site/',
+                              REMOTE_ADDR='mozilla.com')
         set_region.assert_called_with('us')
+        eq_(res['API-Geo'], 'us')
 
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'us')
     @mock.patch('socket.socket')
@@ -131,8 +154,10 @@ class TestRegionMiddleware(amo.tests.TestCase):
     def test_geoip_down(self, set_region, mock_socket):
         """ Test that we fail gracefully if the GeoIP server is down. """
         mock_socket.connect.side_effect = IOError
-        self.client.get('/api/v1/apps/', REMOTE_ADDR='mozilla.com')
+        res = self.client.get('/api/v1/services/config/site/',
+                              REMOTE_ADDR='mozilla.com')
         set_region.assert_called_with('us')
+        eq_(res['API-Geo'], 'us')
 
     @mock.patch.object(settings, 'GEOIP_DEFAULT_VAL', 'us')
     @mock.patch('socket.socket')
@@ -141,8 +166,10 @@ class TestRegionMiddleware(amo.tests.TestCase):
         """ Test that we fail gracefully if the GeoIP server times out. """
         mock_socket.return_value.connect.return_value = True
         mock_socket.return_value.send.side_effect = socket.timeout
-        self.client.get('/api/v1/apps/', REMOTE_ADDR='mozilla.com')
+        res = self.client.get('/api/v1/services/config/site/',
+                              REMOTE_ADDR='mozilla.com')
         set_region.assert_called_with('us')
+        eq_(res['API-Geo'], 'us')
 
 
 class TestRegionMiddlewarePersistence(amo.tests.TestCase):
@@ -150,5 +177,6 @@ class TestRegionMiddlewarePersistence(amo.tests.TestCase):
 
     def test_save_region(self):
         self.client.login(username='regular@mozilla.com', password='password')
-        self.client.get('/api/v1/apps/?region=br')
+        res = self.client.get('/api/v1/services/config/site/?region=br')
         eq_(UserProfile.objects.get(pk=999).region, 'br')
+        eq_(res['API-Geo'], 'br')
