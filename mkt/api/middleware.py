@@ -19,7 +19,7 @@ from multidb.pinning import (pin_this_thread, this_thread_is_pinned,
 from multidb.middleware import PinningRouterMiddleware
 
 from mkt.api.models import Access, ACCESS_TOKEN, Token
-from mkt.api.oauth import OAuthServer
+from mkt.api.oauth import server
 from mkt.carriers import get_carrier
 from users.models import UserProfile
 
@@ -56,26 +56,26 @@ class RestOAuthMiddleware(object):
         # Set up authed_from attribute.
         auth_header = {'Authorization': auth_header_value}
         method = getattr(request, 'signed_method', request.method)
-        oauth = OAuthServer()
         if ('oauth_token' in request.META['QUERY_STRING'] or
             'oauth_token' in auth_header_value):
             # This is 3-legged OAuth.
             log.info('Trying 3 legged OAuth')
             try:
-                valid, oauth_request = oauth.verify_request(
+                valid, oauth_req = server.validate_protected_resource_request(
                     request.build_absolute_uri(),
-                    method, headers=auth_header,
-                    require_resource_owner=True)
+                    http_method=method,
+                    body=request.body,
+                    headers=auth_header)
             except ValueError:
                 log.error('ValueError on verifying_request', exc_info=True)
                 return
             if not valid:
                 log.error(u'Cannot find APIAccess token with that key: %s'
-                          % oauth.attempted_key)
+                          % oauth_req.attempted_key)
                 return
             uid = Token.objects.filter(
                 token_type=ACCESS_TOKEN,
-                key=oauth_request.resource_owner_key).values_list(
+                key=oauth_req.resource_owner_key).values_list(
                     'user_id', flat=True)[0]
             request.amo_user = UserProfile.objects.select_related(
                 'user').get(pk=uid)
@@ -84,19 +84,23 @@ class RestOAuthMiddleware(object):
             # This is 2-legged OAuth.
             log.info('Trying 2 legged OAuth')
             try:
-                valid, oauth_request = oauth.verify_request(
+                # FIXME: we had require_resource_owner=False before but this
+                # parameter no longer exists! Does it really work now ?
+                # Needs tests!
+                valid, oauth_req = server.validate_protected_resource_request(
                     request.build_absolute_uri(),
-                    method, headers=auth_header,
-                    require_resource_owner=False)
+                    http_method=method,
+                    body=request.body,
+                    headers=auth_header)
             except ValueError:
                 log.error('ValueError on verifying_request', exc_info=True)
                 return
             if not valid:
                 log.error(u'Cannot find APIAccess token with that key: %s'
-                          % oauth.attempted_key)
+                          % oauth_req.attempted_key)
                 return
             uid = Access.objects.filter(
-                key=oauth_request.client_key).values_list(
+                key=oauth_req.client_key).values_list(
                     'user_id', flat=True)[0]
             request.amo_user = UserProfile.objects.select_related(
                 'user').get(pk=uid)
