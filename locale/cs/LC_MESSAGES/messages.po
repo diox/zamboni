@@ -3887,7 +3887,7 @@ msgid "Completed"
 msgstr "Dokončeno"
 
 #: mkt/constants/platforms.py:42 mkt/constants/tests/test_platforms.py:15 mkt/constants/tests/test_platforms.py:35 mkt/constants/tests/test_platforms.py:57
-msgid "Firefox for Desktop"
+msgid "Firefox Desktop"
 msgstr "Firefox pro desktop"
 
 #: mkt/constants/platforms.py:77 mkt/constants/platforms.py:81

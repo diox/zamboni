@@ -4309,7 +4309,7 @@ msgstr ""
 #: mkt/constants/tests/test_platforms.py:15
 #: mkt/constants/tests/test_platforms.py:35
 #: mkt/constants/tests/test_platforms.py:57
-msgid "Firefox for Desktop"
+msgid "Firefox Desktop"
 msgstr ""
 
 #: mkt/constants/platforms.py:77
