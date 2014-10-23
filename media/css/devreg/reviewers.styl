@@ -329,7 +329,7 @@ table.data-grid .addon-version-notes a {
         font-weight: bold;
         color: $medium-gray;
         display: inline-block;
-        padding: 10px 10px 20px;
+        padding: 10px;
         text-decoration: none;
     }
 }
@@ -1218,40 +1218,25 @@ span.currently_viewing_warning {
     }
     /* editors/queue tabs */
     .tabnav {
+        display: flex;
         margin: 0 10px;
         position: relative;
-        top: 13px;
-
-        &.themes {
-            display: inline-block;
-        }
+        top: 1px;
     }
     #page .tabnav li {
         display: inline;
         position: relative;
         margin: 0 5px;
         top: 0;
+        white-space: nowrap;
         z-index: 0;
 
-        &:after {
-            /* Cover the bottom part of the box-shadow. */
-            background: $white;
-            bottom: 12px;
-            content: "";
-            display: block;
-            float: left;
-            height: 15px;
-            margin-bottom: -15px;
-            position: relative;
-            width: 100%;
-        }
         &.selected {
             z-index: 2;
 
             a {
                 background-color: $white;
                 border-color: $taupe;
-                box-shadow: 0 -2px 0 rgba($taupe,.2) inset, 0 0 1px rgba(0,0,0,0.1);
             }
             a, a:hover {
                 color: $dark-gray;
