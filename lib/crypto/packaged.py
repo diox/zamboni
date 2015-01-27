@@ -122,14 +122,48 @@ def _no_sign(src, dest):
     shutil.copy(src, dest)
 
 
+# def sign_langpack(obj):
+#     log.info('[LangPack:%s] Signing version: %s' % (obj.pk, obj.version))
+#     if not obj.filename or not storage.exists(obj.file_path):
+#         log.error('[LangPack:%s] Attempt to sign with no filename.' % obj.pk)
+#         raise SigningError('No file')
+#     path = obj.signed_file_path
+#     if storage.exists(path):
+#         log.info('[LangPack:%s] Already signed file exists.' % obj.pk)
+#         return path
+#     ids = json.dumps({
+#         'id': obj.pk,
+#         # `version` needs to be unique. We don't have a Version model for
+#         # LangPacks, but the instance hash of the original filename should be
+#         # unique and properly represent the current version.
+#         'version': obj.hash
+#     })
+#     with statsd.timer('services.sign.app'):
+#         try:
+#             sign_app(obj.file_path, path, ids, reviewer=False)
+#         except SigningError:
+#             log.info('[LangPack:%s] Signing failed' % obj.pk)
+#             if storage.exists(path):
+#                 storage.delete(path)
+#             raise
+#     log.info('[LangPack:%s] Signing complete.' % obj.pk)
+#     return path
+
+
+
+# Need to finish or abandon this refactor. See https://github.com/mozilla/olympia/pull/431/
+# for inspiration. Passing version instead of version_id is better, but it'd be
+# even better if I could pass an arbitrary model instance with a similar API to
+# access files - to make LangPacks work. Need to know if I'm doing multiple models
+# or keeping the single model first, though.
+
 @task
-def sign(version_id, reviewer=False, resign=False, **kw):
-    version = Version.objects.get(pk=version_id)
+def sign(version, reviewer=False, resign=False, **kw):
     app = version.addon
-    log.info('Signing version: %s of app: %s' % (version_id, app))
+    log.info('Signing version: %s of app: %s' % (version.pk, app))
 
     if not app.is_packaged:
-        log.error('[Webapp:%s] Attempt to sign a non-packaged app.' % app.id)
+        log.error('[Webapp:%s] Attempt to sign a non-packaged app.' % app.pk)
         raise SigningError('Not packaged')
 
     try:
@@ -137,14 +171,14 @@ def sign(version_id, reviewer=False, resign=False, **kw):
     except IndexError:
         log.error(
             '[Webapp:%s] Attempt to sign an app with no files in version.' %
-            app.id)
+            app.pk)
         raise SigningError('No file')
 
     path = (file_obj.signed_reviewer_file_path if reviewer else
             file_obj.signed_file_path)
 
     if storage.exists(path) and not resign:
-        log.info('[Webapp:%s] Already signed app exists.' % app.id)
+        log.info('[Webapp:%s] Already signed app exists.' % app.pk)
         return path
 
     if reviewer:
@@ -153,21 +187,21 @@ def sign(version_id, reviewer=False, resign=False, **kw):
         # same app won't conflict with themselves.
         ids = json.dumps({
             'id': 'reviewer-{guid}-{version_id}'.format(guid=app.guid,
-                                                        version_id=version_id),
-            'version': version_id
+                                                        version_id=version.pk),
+            'version': version.pk
         })
     else:
         ids = json.dumps({
             'id': app.guid,
-            'version': version_id
+            'version': version.pk
         })
     with statsd.timer('services.sign.app'):
         try:
             sign_app(file_obj.file_path, path, ids, reviewer)
         except SigningError:
-            log.info('[Webapp:%s] Signing failed' % app.id)
+            log.info('[Webapp:%s] Signing failed' % app.pk)
             if storage.exists(path):
                 storage.delete(path)
             raise
-    log.info('[Webapp:%s] Signing complete.' % app.id)
+    log.info('[Webapp:%s] Signing complete.' % app.pk)
     return path
