@@ -4,6 +4,9 @@ DJANGO = $(PYTHON) manage.py
 SETTINGS = mkt.settings
 SHELL := /usr/bin/env bash
 JENKINS_URL = https://deploy.mktadm.ops.services.phx1.mozilla.com/view/Stage/job/Deploy%20Marketplace%20Stage/build
+export PIP_CACHE_DIR=/tmp/pip-cache
+export PIP_WHEEL_DIR=/tmp/pip-cache/wheels
+export PIP_FIND_LINKS=file:///tmp/pip-cache/index.html
 
 .PHONY: help docs test test_force_db test_api test_api_force_db tdd test_failed update_code update_deps update_db full_update reindex release
 
@@ -52,7 +55,12 @@ update_code:
 	cd vendor && git pull . && git submodule update --init && cd -
 
 update_deps:
-	pip install --no-deps --exists-action=w --download-cache=/tmp/pip-cache -r requirements/dev.txt --find-links https://pyrepo.addons.mozilla.org/
+	# Build wheels first, then install from the wheels.
+	mkdir -p $(PIP_CACHE_DIR)
+	wget --quiet -O $(PIP_CACHE_DIR)/index.html -k https://pyrepo.addons.mozilla.org/
+	pip install wheel
+	pip wheel --no-deps --no-index -r requirements/dev.txt --download-cache=/tmp/pip-cache
+	pip install --no-deps --no-index --exists-action=w --find-links=file:///tmp/pip-cache/wheels -r requirements/dev.txt 
 	npm install
 
 update_db:
