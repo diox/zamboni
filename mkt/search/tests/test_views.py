@@ -7,7 +7,7 @@ from django.core.urlresolvers import reverse
 from django.http import QueryDict
 from django.test.client import RequestFactory
 
-from mock import patch
+from mock import patch, PropertyMock
 from nose.tools import eq_, ok_
 
 import mkt
@@ -287,9 +287,10 @@ class TestSearchView(RestOAuth, ESTestCase):
         ok_('latest_version' not in obj)
         ok_('reviewer_flags' not in obj)
 
-    @patch('mkt.webapps.models.Webapp.get_excluded_region_ids')
-    def test_upsell(self, get_excluded_region_ids):
-        get_excluded_region_ids.return_value = []
+    @patch('mkt.webapps.models.Webapp.excluded_region_ids',
+           new_callable=PropertyMock)
+    def test_upsell(self, excluded_region_ids):
+        excluded_region_ids.return_value = []
         upsell = app_factory(premium_type=mkt.ADDON_PREMIUM)
         AddonUpsell.objects.create(free=self.webapp, premium=upsell)
         self.webapp.save()

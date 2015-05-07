@@ -5,11 +5,11 @@ from django.conf import settings
 from django.core.urlresolvers import reverse
 
 import commonware.log
+from drf_compound_fields.fields import ListField
 from rest_framework import response, serializers
 from tower import ungettext as ngettext
 
 import mkt
-from drf_compound_fields.fields import ListField
 from mkt.api.fields import (ESTranslationSerializerField, LargeTextField,
                             ReverseChoiceField, SemiSerializerMethodField,
                             TranslationSerializerField)
@@ -17,6 +17,7 @@ from mkt.constants.applications import DEVICE_TYPES
 from mkt.constants.categories import CATEGORY_CHOICES
 from mkt.constants.features import FeatureProfile
 from mkt.constants.payments import PROVIDER_BANGO
+from mkt.constants.regions import REGIONS_CHOICES_ID_DICT
 from mkt.prices.models import AddonPremium, Price
 from mkt.search.serializers import BaseESSerializer, es_to_datetime
 from mkt.site.helpers import absolutify
@@ -76,6 +77,8 @@ class AppSerializer(serializers.ModelSerializer):
     default_locale = serializers.CharField(read_only=True)
     device_types = SemiSerializerMethodField('get_device_types')
     description = TranslationSerializerField(required=False)
+    excluded_regions = ListField(serializers.CharField(), read_only=True,
+                                 source='get_excluded_region_slugs')
     homepage = TranslationSerializerField(required=False)
     file_size = serializers.IntegerField(source='file_size', read_only=True)
     icons = serializers.SerializerMethodField('get_icons')
@@ -226,7 +229,7 @@ class AppSerializer(serializers.ModelSerializer):
         # Only return the upsell app if it's public and we are not in an
         # excluded region.
         if (upsell and upsell.is_public() and self._get_region_id()
-                not in upsell.get_excluded_region_ids()):
+                not in upsell.excluded_region_ids):
             return {
                 'id': upsell.id,
                 'app_slug': upsell.app_slug,
@@ -271,6 +274,11 @@ class AppSerializer(serializers.ModelSerializer):
                 max_cat).format(max_cat))
 
         return attrs
+
+    def get_excluded_region_slugs(self, app):
+        return sorted([REGIONS_CHOICES_ID_DICT[id_].slug
+                       for id_ in app.excluded_region_ids
+                       if id_ in REGIONS_CHOICES_ID_DICT])
 
     def get_device_types(self, app):
         with no_translation():
@@ -447,10 +455,12 @@ class ESAppSerializer(BaseESSerializer, AppSerializer):
         # Set attributes that have a different name in ES.
         obj.public_stats = data['has_public_stats']
 
-        # Override obj.get_region() with a static list of regions generated
-        # from the region_exclusions stored in ES.
+        # Override obj.excluded_region_ids and obj.get_region() with
+        # lists of regions generated from the region_exclusions field stored in
+        # ES.
+        obj.excluded_region_ids = data['region_exclusions']
         obj.get_regions = obj.get_regions(obj.get_region_ids(
-            restofworld=True, excluded=data['region_exclusions']))
+            restofworld=True, excluded=obj.excluded_region_ids))
 
         # Some methods below will need the raw data from ES, put it on obj.
         obj.es_data = data

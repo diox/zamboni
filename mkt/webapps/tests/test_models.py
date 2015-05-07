@@ -1466,16 +1466,16 @@ class TestExclusions(TestCase):
         )
 
     def test_not_premium(self):
-        ok_(mkt.regions.USA.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.USA.id in self.app.excluded_region_ids)
 
     def test_not_paid(self):
         PriceCurrency.objects.update(paid=False)
         # The US is excluded because there are no valid prices.
-        ok_(mkt.regions.USA.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.USA.id in self.app.excluded_region_ids)
 
     def test_premium(self):
         self.make_tier()
-        ok_(mkt.regions.USA.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.USA.id in self.app.excluded_region_ids)
 
     def test_premium_not_remove_tier(self):
         self.make_tier()
@@ -1483,30 +1483,30 @@ class TestExclusions(TestCase):
              .filter(region=mkt.regions.POL.id).update(paid=True))
         # Poland will not be excluded because we haven't excluded the rest
         # of the world.
-        ok_(mkt.regions.POL.id not in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.POL.id not in self.app.excluded_region_ids)
 
     def test_premium_remove_tier(self):
         self.make_tier()
         self.app.addonexcludedregion.create(region=mkt.regions.RESTOFWORLD.id)
         # If we exclude the rest of the world, then we'll exclude Nicaragua
         # which has no price currency.
-        ok_(mkt.regions.NIC.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.NIC.id in self.app.excluded_region_ids)
 
     def test_not_paid_worldwide(self):
         self.make_tier()
         self.row.update(paid=False)
         # Rest of world has been set to not paid. Meaning that its not
         # available right now, so we should exclude Nicaragua.
-        ok_(mkt.regions.NIC.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.NIC.id in self.app.excluded_region_ids)
 
     def test_usk_rating_refused(self):
         self.geodata.update(region_de_usk_exclude=True)
-        ok_(mkt.regions.DEU.id in self.app.get_excluded_region_ids())
+        ok_(mkt.regions.DEU.id in self.app.excluded_region_ids)
 
     def test_game_iarc(self):
         self.geodata.update(region_de_iarc_exclude=True,
                             region_br_iarc_exclude=True)
-        excluded = self.app.get_excluded_region_ids()
+        excluded = self.app.excluded_region_ids
         ok_(mkt.regions.BRA.id in excluded)
         ok_(mkt.regions.DEU.id in excluded)
 

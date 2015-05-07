@@ -10,7 +10,7 @@ from django.test.utils import override_settings
 
 
 import mock
-from mock import patch
+from mock import patch, PropertyMock
 from nose.tools import eq_, ok_
 
 import mkt
@@ -313,16 +313,18 @@ class TestRatingResource(RestOAuth, mkt.site.tests.MktPaths):
         assert data['user']['can_rate']
         assert not data['user']['has_rated']
 
-    @patch('mkt.webapps.models.Webapp.get_excluded_region_ids')
-    def test_can_rate_unpurchased(self, exclude_mock):
-        exclude_mock.return_value = []
+    @patch('mkt.webapps.models.Webapp.excluded_region_ids',
+           new_callable=PropertyMock)
+    def test_can_rate_unpurchased(self, excluded_region_ids):
+        excluded_region_ids.return_value = []
         self.app.update(premium_type=mkt.ADDON_PREMIUM)
         res, data = self._get_url(self.list_url, app=self.app.app_slug)
         assert not res.json['user']['can_rate']
 
-    @patch('mkt.webapps.models.Webapp.get_excluded_region_ids')
-    def test_can_rate_purchased(self, exclude_mock):
-        exclude_mock.return_value = []
+    @patch('mkt.webapps.models.Webapp.excluded_region_ids',
+           new_callable=PropertyMock)
+    def test_can_rate_purchased(self, excluded_region_ids):
+        excluded_region_ids.return_value = []
         self.app.update(premium_type=mkt.ADDON_PREMIUM)
         AddonPurchase.objects.create(addon=self.app, user=self.user)
         res, data = self._get_url(self.list_url, app=self.app.app_slug)
@@ -460,16 +462,18 @@ class TestRatingResource(RestOAuth, mkt.site.tests.MktPaths):
         res, data = self._create()
         eq_(403, res.status_code)
 
-    @patch('mkt.webapps.models.Webapp.get_excluded_region_ids')
-    def test_rate_unpurchased_premium(self, exclude_mock):
-        exclude_mock.return_value = []
+    @patch('mkt.webapps.models.Webapp.excluded_region_ids',
+           new_callable=PropertyMock)
+    def test_rate_unpurchased_premium(self, excluded_region_ids):
+        excluded_region_ids.return_value = []
         self.app.update(premium_type=mkt.ADDON_PREMIUM)
         res, data = self._create()
         eq_(403, res.status_code)
 
-    @patch('mkt.webapps.models.Webapp.get_excluded_region_ids')
-    def test_rate_purchased_premium(self, exclude_mock):
-        exclude_mock.return_value = []
+    @patch('mkt.webapps.models.Webapp.excluded_region_ids',
+           new_callable=PropertyMock)
+    def test_rate_purchased_premium(self, excluded_region_ids):
+        excluded_region_ids.return_value = []
         self.app.update(premium_type=mkt.ADDON_PREMIUM)
         AddonPurchase.objects.create(addon=self.app, user=self.user)
         res, data = self._create()

@@ -744,7 +744,7 @@ class TestFixExcludedRegions(mkt.site.tests.TestCase):
         self.app.addonexcludedregion.create(region=mkt.regions.PER.id)
         self.app.addonexcludedregion.create(region=mkt.regions.FRA.id)
         fix_excluded_regions([self.app.pk])
-        self.assertSetEqual(self.app.get_excluded_region_ids(),
+        self.assertSetEqual(self.app.excluded_region_ids,
                             [mkt.regions.PER.id, mkt.regions.FRA.id])
         eq_(self.app.addonexcludedregion.count(), 2)
 
@@ -757,7 +757,7 @@ class TestFixExcludedRegions(mkt.site.tests.TestCase):
         self.app.geodata.update(region_de_iarc_exclude=True,
                                 region_br_iarc_exclude=True)
         fix_excluded_regions([self.app.pk])
-        self.assertSetEqual(self.app.get_excluded_region_ids(),
+        self.assertSetEqual(self.app.excluded_region_ids,
                             [mkt.regions.DEU.id, mkt.regions.BRA.id])
         eq_(self.app.addonexcludedregion.count(), 0)
 
@@ -767,7 +767,7 @@ class TestFixExcludedRegions(mkt.site.tests.TestCase):
         fix_excluded_regions([self.app.pk])
         # There are no exclusions at all, because the payments fall back
         # to rest of the world.
-        self.assertSetEqual(self.app.get_excluded_region_ids(), [])
+        self.assertSetEqual(self.app.excluded_region_ids, [])
         eq_(self.app.addonexcludedregion.count(), 0)
 
     @mock.patch('mkt.webapps.tasks.index_webapps')
@@ -778,7 +778,7 @@ class TestFixExcludedRegions(mkt.site.tests.TestCase):
         # All the other countries are excluded, but not the US because they
         # choose to exclude the rest of the world.
         excluded = set(mkt.regions.ALL_REGION_IDS) - set([mkt.regions.USA.id])
-        self.assertSetEqual(self.app.get_excluded_region_ids(), excluded)
+        self.assertSetEqual(self.app.excluded_region_ids, excluded)
         eq_(self.app.addonexcludedregion.count(), 1)
 
     @mock.patch('mkt.webapps.tasks.index_webapps')
@@ -786,7 +786,7 @@ class TestFixExcludedRegions(mkt.site.tests.TestCase):
         for region in mkt.regions.SPECIAL_REGION_IDS:
             self.app.addonexcludedregion.create(region=region)
         fix_excluded_regions([self.app.pk])
-        self.assertSetEqual(self.app.get_excluded_region_ids(),
+        self.assertSetEqual(self.app.excluded_region_ids,
                             mkt.regions.SPECIAL_REGION_IDS)
         eq_(self.app.addonexcludedregion.count(),
             len(mkt.regions.SPECIAL_REGION_IDS))

@@ -1580,7 +1580,7 @@ class Webapp(UUIDModelMixin, OnChangeMixin, ModelBase):
         """
         from mkt.developers.providers import ALL_PROVIDERS
         regions = []
-        excluded = self.get_excluded_region_ids()
+        excluded = self.excluded_region_ids
 
         # Don't allow the region if its excluded.
         if region not in excluded:
@@ -1667,11 +1667,12 @@ class Webapp(UUIDModelMixin, OnChangeMixin, ModelBase):
         else:
             all_ids = mkt.regions.REGION_IDS
         if excluded is None:
-            excluded = self.get_excluded_region_ids()
+            excluded = self.excluded_region_ids
 
         return sorted(set(all_ids) - set(excluded or []))
 
-    def get_excluded_region_ids(self):
+    @cached_property(writable=True)
+    def excluded_region_ids(self):
         """
         Return IDs of regions for which this app is excluded.
 

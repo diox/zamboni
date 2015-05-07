@@ -332,7 +332,7 @@ class WebappIndexer(BaseIndexer):
             'average': obj.average_rating,
             'count': obj.total_reviews,
         }
-        d['region_exclusions'] = obj.get_excluded_region_ids()
+        d['region_exclusions'] = obj.excluded_region_ids
         d['reviewed'] = obj.versions.filter(
             deleted=False).aggregate(Min('reviewed')).get('reviewed__min')
 
@@ -354,7 +354,7 @@ class WebappIndexer(BaseIndexer):
                 'icon_url': upsell_obj.get_icon_url(128),
                 # TODO: Store all localizations of upsell.name.
                 'name': unicode(upsell_obj.name),
-                'region_exclusions': upsell_obj.get_excluded_region_ids()
+                'region_exclusions': upsell_obj.excluded_region_ids
             }
 
         d['versions'] = [dict(version=v.version,

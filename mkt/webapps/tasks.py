@@ -683,8 +683,6 @@ def fix_excluded_regions(ids, **kw):
     apps = Webapp.objects.filter(id__in=ids).filter(_geodata__restricted=False)
     for app in apps:
         # Delete all excluded regions, except special regions.
-        #
-        # TODO: Add special region logic to `get_excluded_region_ids`?
         app.addonexcludedregion.exclude(
             region__in=mkt.regions.SPECIAL_REGION_IDS).delete()
 
