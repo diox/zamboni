@@ -804,17 +804,6 @@ class Webapp(UUIDModelMixin, OnChangeMixin, ModelBase):
         return AddonUser.objects.filter(addon=self, user=user,
                                         role__in=roles).exists()
 
-    @property
-    def thumbnail_url(self):
-        """
-        Returns the addon's thumbnail url or a default.
-        """
-        try:
-            preview = self.all_previews[0]
-            return preview.thumbnail_url
-        except IndexError:
-            return settings.MEDIA_URL + '/img/icons/no-preview.png'
-
     def get_purchase_type(self, user):
         if user and isinstance(user, UserProfile):
             try:
@@ -960,10 +949,6 @@ class Webapp(UUIDModelMixin, OnChangeMixin, ModelBase):
             return self._upsell_to.all()[0]
         except IndexError:
             pass
-
-    @property
-    def icon_url(self):
-        return self.get_icon_url(32)
 
     @classmethod
     def get_fallback(cls):
