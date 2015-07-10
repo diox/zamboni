@@ -5,10 +5,12 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
-from django.core.files.storage import default_storage as storage
+from django.core.files.base import File
+from django.core.files.storage import get_storage_class
 from django.core.urlresolvers import reverse
 from django.template import Context, loader
 from django.test.client import RequestFactory
@@ -72,6 +74,8 @@ def update_last_updated(addon_id):
 
 @task
 def delete_preview_files(id, **kw):
+    storage = get_storage_class()()
+
     task_log.info('[1@None] Removing preview with id of %s.' % id)
 
     p = Preview(id=id)
@@ -344,18 +348,19 @@ def unindex_webapps(ids, **kw):
 
 
 @task
-def dump_app(id, **kw):
+def dump_app(id_, **kw):
     from mkt.webapps.serializers import AppSerializer
     # Because @robhudson told me to.
     # Note: not using storage because all these operations should be local.
-    target_dir = os.path.join(settings.DUMPED_APPS_PATH, 'apps',
-                              str(id / 1000))
-    target_file = os.path.join(target_dir, str(id) + '.json')
+
+    # FIXME: should not use /tmp/apps/apps directly.
+    target_dir = os.path.join('/tmp', 'apps', 'apps', str(id_ / 1000))
+    target_file = os.path.join(target_dir, str(id_) + '.json')
 
     try:
-        obj = Webapp.objects.get(pk=id)
+        obj = Webapp.objects.get(pk=id_)
     except Webapp.DoesNotExist:
-        task_log.info(u'Webapp does not exist: {0}'.format(id))
+        task_log.info(u'Webapp does not exist: {0}'.format(id_))
         return
 
     req = RequestFactory().get('/')
@@ -365,7 +370,7 @@ def dump_app(id, **kw):
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
-    task_log.info('Dumping app {0} to {1}'.format(id, target_file))
+    task_log.info('Dumping app {0} to {1}'.format(id_, target_file))
     res = AppSerializer(obj, context={'request': req}).data
     json.dump(res, open(target_file, 'w'), cls=JSONEncoder)
     return target_file
@@ -373,8 +378,8 @@ def dump_app(id, **kw):
 
 @task
 def clean_apps(pks, **kw):
-    app_dir = os.path.join(settings.DUMPED_APPS_PATH, 'apps')
-    rm_directory(app_dir)
+    # FIXME: should not use /tmp/apps directly.
+    rm_local_directory(os.path.join('/tmp', 'apps'))
     return pks
 
 
@@ -382,8 +387,8 @@ def clean_apps(pks, **kw):
 def dump_apps(ids, **kw):
     task_log.info(u'Dumping apps {0} to {1}. [{2}]'
                   .format(ids[0], ids[-1], len(ids)))
-    for id in ids:
-        dump_app(id)
+    for id_ in ids:
+        dump_app(id_)
 
 
 @task
@@ -391,29 +396,12 @@ def zip_apps(*args, **kw):
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     files = ['apps'] + compile_extra_files(date=today)
     tarball = compress_export(filename=today, files=files)
-    link_latest_export(tarball)
+    # latest.tgz no longer done because S3 does not support symlink, and we
+    # can't overwrite a file atomically with S3BotoStorageFile.
     return tarball
 
 
-def link_latest_export(tarball):
-    """
-    Atomically links basename(tarball) to
-    DUMPED_APPS_PATH/tarballs/latest.tgz.
-    """
-    tarball_name = os.path.basename(tarball)
-    target_dir = os.path.join(settings.DUMPED_APPS_PATH, 'tarballs')
-    target_file = os.path.join(target_dir, 'latest.tgz')
-    tmp_file = os.path.join(target_dir, '.latest.tgz')
-    if os.path.lexists(tmp_file):
-        os.unlink(tmp_file)
-
-    os.symlink(tarball_name, tmp_file)
-    os.rename(tmp_file, target_file)
-
-    return target_file
-
-
-def rm_directory(path):
+def rm_local_directory(path):
     if os.path.exists(path):
         shutil.rmtree(path)
 
@@ -430,10 +418,10 @@ def export_data(name=None):
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     if name is None:
         name = today
-    root = settings.DUMPED_APPS_PATH
     directories = ['apps']
     for directory in directories:
-        rm_directory(os.path.join(root, directory))
+        # FIXME: should not use /tmp/apps directly.
+        rm_local_directory(os.path.join('/tmp', directory))
     files = directories + compile_extra_files(date=today)
     chord(dump_all_apps_tasks(),
           compress_export.si(filename=name, files=files)).apply_async()
@@ -443,32 +431,43 @@ def compile_extra_files(date):
     # Put some .txt files in place.
     context = Context({'date': date, 'url': settings.SITE_URL})
     files = ['license.txt', 'readme.txt']
-    if not os.path.exists(settings.DUMPED_APPS_PATH):
-        os.makedirs(settings.DUMPED_APPS_PATH)
     created_files = []
-    for f in files:
-        template = loader.get_template('webapps/dump/apps/' + f)
-        dest = os.path.join(settings.DUMPED_APPS_PATH, f)
+    for filename in files:
+        template = loader.get_template('webapps/dump/apps/' + filename)
+        # FIXME: should not use /tmp/apps directly.
+        dest = os.path.join('/tmp', 'apps', filename)
         open(dest, 'w').write(template.render(context))
-        created_files.append(f)
+        created_files.append(filename)
     return created_files
 
 
 @task
 def compress_export(filename, files):
-    # Note: not using storage because all these operations should be local.
-    target_dir = os.path.join(settings.DUMPED_APPS_PATH, 'tarballs')
-    target_file = os.path.join(target_dir, filename + '.tgz')
+    """
+    Make a tar of the dumped content locally and upload it to the
+    SharedFilesStorage.
 
-    if not os.path.exists(target_dir):
-        os.makedirs(target_dir)
+    It should be the only function that uses SharedFilesStorage, the rest are
+    going to be local operations.
+    """
+    # Distant storage, file and dir name.
+    storage = get_storage_class('mkt.site.utils.SharedFilesStorage')()
+    target_dirname = os.path.join(settings.DUMPED_APPS_DIR, 'tarballs')
+    target_filename = os.path.join(target_dirname, filename + '.tgz')
 
-    # Put some .txt files in place.
-    cmd = ['tar', 'czf', target_file, '-C',
-           settings.DUMPED_APPS_PATH] + files
-    task_log.info(u'Creating dump {0}'.format(target_file))
+    # Local filename.
+    temporary_filename = tempfile.mkstemp(suffix='.tgz')[1]
+
+    # Make a temporary local .tgz with all files passed to the function and
+    # then upload it.
+    cmd = ['tar', 'czf', temporary_filename, '-C', '/tmp/apps'] + files
+    task_log.info(u'Creating dump {0}'.format(temporary_filename))
     subprocess.call(cmd)
-    return target_file
+    with open(temporary_filename) as file_:
+        storage.save(target_filename, File(file_))
+    # Delete temporary file, we no longer need it.
+    os.unlink(temporary_filename)
+    return target_filename
 
 
 @task(ignore_result=False)
@@ -519,7 +518,6 @@ def dump_user_installs(ids, **kw):
 
 @task
 def zip_users(*args, **kw):
-    # Note: not using storage because all these operations should be local.
     today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
     target_dir = os.path.join(settings.DUMPED_USERS_PATH, 'tarballs')
     target_file = os.path.join(target_dir, '{0}.tgz'.format(today))
@@ -551,6 +549,7 @@ def _fix_missing_icons(id):
 
     # Check for missing icons. If we find one important size missing, call
     # fetch_icon for this app.
+    storage = get_storage_class()()
     dirname = webapp.get_icon_dir()
     destination = os.path.join(dirname, '%s' % webapp.id)
     for size in (64, 128):

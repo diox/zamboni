@@ -381,10 +381,16 @@ class LocalFileStorage(FileSystemStorage):
     Unlike Django's default FileSystemStorage, this class behaves more like a
     "cloud" storage system. Specifically, you never have to write defensive
     code that prepares for leading directory paths to exist.
-    """
 
-    def __init__(self, base_url=None):
-        super(LocalFileStorage, self).__init__(location='/', base_url=base_url)
+    It will also overwrite existing files by default - it's the caller
+    responsibility to check for file existence first.
+    """
+    default_location = '/'
+
+    def __init__(self, **kwargs):
+        if kwargs.get('location') is None:
+            kwargs['location'] = self.default_location
+        super(LocalFileStorage, self).__init__(**kwargs)
 
     def delete(self, name):
         """Delete a file or empty directory path.
@@ -422,6 +428,17 @@ class LocalFileStorage(FileSystemStorage):
         if os.path.supports_unicode_filenames:
             return smart_unicode(string)
         return smart_str(string)
+
+
+class MediaFilesStorage(LocalFileStorage):
+    default_location = settings.MEDIA_ROOT
+
+
+class SharedFilesStorage(LocalFileStorage):
+    # FIXME: add abstraction to enable/disable S3. When S3 is enabled, the base
+    # location needs to change to something to differenciate the dir where we
+    # store media from the dir where we store the rest.
+    default_location = settings.NETAPP_STORAGE
 
 
 def strip_bom(data):

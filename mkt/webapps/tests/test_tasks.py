@@ -3,14 +3,14 @@ import datetime
 import hashlib
 import json
 import os
-import stat
 import tarfile
 from copy import deepcopy
 from tempfile import mkdtemp
 
 from django.conf import settings
 from django.core import mail
-from django.core.files.storage import default_storage as storage
+from django.core.files.storage import (default_storage as storage,
+                                       get_storage_class)
 from django.core.management import call_command
 from django.core.urlresolvers import reverse
 
@@ -32,8 +32,8 @@ from mkt.webapps.models import AddonUser, Preview, Webapp
 from mkt.webapps.tasks import (adjust_categories, dump_app, dump_user_installs,
                                export_data, fix_excluded_regions,
                                notify_developers_of_failure, pre_generate_apk,
-                               PreGenAPKError, rm_directory, update_manifests,
-                               zip_apps)
+                               PreGenAPKError, rm_local_directory,
+                               update_manifests, zip_apps)
 
 
 original = {
@@ -518,6 +518,12 @@ class TestUpdateManifest(mkt.site.tests.TestCase):
 class TestDumpApps(mkt.site.tests.TestCase):
     fixtures = fixture('webapp_337141')
 
+    def setUp(self):
+        super(TestDumpApps, self).setUp()
+        # FIXME: make a temp dir, and mock SharedFilesStorage.location to that
+        # dir for the tests.
+        self.storage = get_storage_class('mkt.site.utils.SharedFilesStorage')()
+
     def test_dump_app(self):
         fn = dump_app(337141)
         result = json.load(open(fn, 'r'))
@@ -527,11 +533,8 @@ class TestDumpApps(mkt.site.tests.TestCase):
         dump_app(337141)
         fn = zip_apps()
         for f in ['license.txt', 'readme.txt']:
-            ok_(os.path.exists(os.path.join(settings.DUMPED_APPS_PATH, f)))
-        ok_(os.stat(fn)[stat.ST_SIZE])
-
-        latest_tgz = os.path.join(os.path.dirname(fn), 'latest.tgz')
-        ok_(os.readlink(latest_tgz) == os.path.basename(fn))
+            ok_(storage.exists(os.path.join(settings.DUMPED_APPS_DIR, f)))
+        ok_(storage.size(fn))
 
     @mock.patch('mkt.webapps.tasks.dump_app')
     def test_not_public(self, dump_app):
@@ -710,7 +713,7 @@ class TestExportData(mkt.site.tests.TestCase):
         self.app_path = 'apps/337/337141.json'
 
     def tearDown(self):
-        rm_directory(self.export_directory)
+        rm_local_directory(self.export_directory)
 
     def create_export(self, name):
         with self.settings(DUMPED_APPS_PATH=self.export_directory):

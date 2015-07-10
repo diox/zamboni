@@ -324,10 +324,10 @@ WEBSITE_ICONS_PATH = UPLOADS_PATH + '/website_icons'
 ADDONS_PATH = NETAPP_STORAGE + '/addons'
 CA_CERT_BUNDLE_PATH = os.path.join(ROOT, 'mkt/site/certificates/roots.pem')
 
-# Where dumped apps will be written too.
-DUMPED_APPS_PATH = NETAPP_STORAGE + '/dumped-apps'
+# Directory (from default storage root) where dumped apps will be written.
+DUMPED_APPS_DIR = 'dumped-apps'
 
-# Where dumped apps will be written too.
+# Where dumped users will be written.
 DUMPED_USERS_PATH = NETAPP_STORAGE + '/dumped-users'
 FEATURED_APP_BG_PATH = UPLOADS_PATH + '/featured_app_background'
 FEED_COLLECTION_BG_PATH = UPLOADS_PATH + '/feed_collection_background'
