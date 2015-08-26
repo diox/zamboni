@@ -339,6 +339,10 @@ class TestReviewersExtensionViewSetGet(UploadTest, RestOAuth):
         self.assertCORS(self.anon.get(self.list_url), 'get', 'post')
         self.assertCORS(self.anon.get(self.url), 'get', 'post')
 
+    def test_trailing_slash(self):
+        ok_(self.list_url.endswith('/'))
+        ok_(self.url.endswith('/'))
+
     def test_list_anonymous(self):
         response = self.anon.get(self.list_url)
         eq_(response.status_code, 403)
@@ -414,6 +418,10 @@ class TestReviewersExtensionViewSetPost(UploadTest, RestOAuth):
     def test_has_cors(self):
         self.assertCORS(self.anon.get(self.publish_url), 'get', 'post')
         self.assertCORS(self.anon.get(self.reject_url), 'get', 'post')
+
+    def test_no_trailing_slash_on_actions(self):
+        ok_(not self.publish_url.endswith('/'))
+        ok_(not self.reject_url.endswith('/'))
 
     def test_post_anonymous(self):
         response = self.anon.post(self.url)
