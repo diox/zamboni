@@ -1,9 +1,11 @@
 from functools import partial
+import mock
 import os
 import tempfile
 import unittest
 
 from django.core.files.base import ContentFile
+from django.core.files.storage import get_storage_class
 from django.test.utils import override_settings
 
 from nose.tools import eq_
@@ -124,3 +126,23 @@ class TestStorageClasses(TestCase):
         assert not storage_is_remote()
         eq_(get_private_storage().__class__.__name__, 'LocalFileStorage')
         eq_(get_public_storage().__class__.__name__, 'LocalFileStorage')
+
+    @override_settings(STATIC_URL='https://testserver.static.url/')
+    def test_s3_public_storage_url_uses_cdn(self):
+        s3_public_storage = get_storage_class(
+            'mkt.site.storage_utils.S3BotoPublicStorage')()
+        eq_(s3_public_storage.url('/path/to/something'),
+            'https://testserver.static.url/_s3/path/to/something')
+
+    @override_settings(STATIC_URL='http://testserver/',
+                       SITE_URL='http://testserver')
+    @mock.patch('mkt.site.storage_utils.S3BotoPublicStorage.connection')
+    def test_s3_public_storage_url_does_not_use_cdn_locally(
+            self, s3_connection_mock):
+        s3_public_storage = get_storage_class(
+            'mkt.site.storage_utils.S3BotoPublicStorage')()
+        s3_public_storage.url('/path/to/something')
+        eq_(s3_connection_mock.generate_url.call_count, 1)
+        generate_url_kw = s3_connection_mock.generate_url.call_args_list[0][1]
+        eq_(generate_url_kw['query_auth'], False)
+        eq_(generate_url_kw['key'], 'path/to/something')

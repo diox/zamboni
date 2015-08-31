@@ -86,6 +86,21 @@ class S3BotoPublicStorage(S3BotoStorage):
         'Cache-Control': 'max-age=31536000',
     }
 
+    def url(self, name, **kwargs):
+        if settings.STATIC_URL.startswith(('/', settings.SITE_URL)):
+            # If STATIC_URL starts with / or SITE_URL, then we're serving
+            # assets locally from a local development environnement. Just
+            # return the S3 URL directly.
+            return super(S3BotoPublicStorage, self).url(name, **kwargs)
+        else:
+            # In "real" environnements (prod/stage/dev), we want to use the CDN
+            # for public resources instead of directly calling S3. To do that,
+            # we manually construct the URL to point to STATIC_URL (which is
+            # our CDN) and we add a "_s3" component to the URL to help the CDN
+            # figure out that the underlying ressource lives on S3. The bucket
+            # is hardcoded in the CDN configuration.
+            return '%s_s3/%s' % (settings.STATIC_URL, name.lstrip('/'))
+
 
 class S3BotoPrivateStorage(S3BotoStorage):
 
