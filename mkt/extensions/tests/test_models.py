@@ -9,8 +9,8 @@ from django.forms import ValidationError
 from django.test.utils import override_settings
 
 from lib.crypto.packaged import SigningError
-from mkt.constants.base import (STATUS_NULL, STATUS_PENDING, STATUS_PUBLIC,
-                                STATUS_REJECTED)
+from mkt.constants.base import (STATUS_DISABLED, STATUS_NULL, STATUS_PENDING,
+                                STATUS_PUBLIC, STATUS_REJECTED)
 from mkt.extensions.models import Extension, ExtensionVersion
 from mkt.files.tests.test_models import UploadCreationMixin, UploadTest
 from mkt.site.storage_utils import private_storage
@@ -112,6 +112,41 @@ class TestExtensionUpload(UploadCreationMixin, UploadTest):
         ok_(private_storage.exists(version.file_path))
         eq_(version.manifest, self.expected_manifest)
         eq_(version.status, STATUS_PENDING)
+
+    def test_upload_new_version_existing_pending_are_rendered_obsolete(self):
+        extension = Extension.objects.create()
+        older_version = ExtensionVersion.objects.create(
+            extension=extension, version='0.0.0', status=STATUS_PENDING)
+        old_version = ExtensionVersion.objects.create(
+            extension=extension, version='0.0', status=STATUS_PENDING)
+        eq_(extension.latest_version, old_version)
+        eq_(extension.status, STATUS_PENDING)
+        upload = self.upload('extension')
+        # Instead of calling Extension.from_upload(), we need to call
+        # ExtensionVersion.from_upload() directly, since an Extension already
+        # exists.
+        version = ExtensionVersion.from_upload(upload, parent=extension)
+
+        eq_(extension.latest_version, version)
+        eq_(extension.status, STATUS_PENDING)
+        eq_(version.status, STATUS_PENDING)
+        old_version.reload()
+        older_version.reload()
+        eq_(old_version.status, STATUS_DISABLED)
+        eq_(older_version.status, STATUS_DISABLED)
+
+    def test_upload_new_version_other_extension_are_not_affected(self):
+        other_extension = Extension.objects.create()
+        other_version = ExtensionVersion.objects.create(
+            extension=other_extension, version='0.0', status=STATUS_PENDING)
+        eq_(other_extension.status, STATUS_PENDING)
+        eq_(other_version.status, STATUS_PENDING)
+        self.test_upload_new_version_existing_pending_are_rendered_obsolete()
+        other_extension.reload()
+        other_version.reload()
+        # other_extension and other_version should not have been affected.
+        eq_(other_extension.status, STATUS_PENDING)
+        eq_(other_version.status, STATUS_PENDING)
 
     def test_upload_new_version_existing_version(self):
         extension = Extension.objects.create()
@@ -527,3 +562,19 @@ class TestExtensionManager(TestCase):
         Extension.objects.create(status=STATUS_NULL)
 
         eq_(list(Extension.objects.pending()), [extension1, extension2])
+
+
+class TestExtensionVersionManager(TestCase):
+    def test_pending(self):
+        extension1 = Extension.objects.create()
+        version1 = ExtensionVersion.objects.create(
+            extension=extension1, status=STATUS_PENDING, version='1.1')
+        extension2 = Extension.objects.create()
+        version2 = ExtensionVersion.objects.create(
+            extension=extension2, status=STATUS_PENDING, version='2.1')
+        ExtensionVersion.objects.create(
+            extension=extension2, status=STATUS_PUBLIC, version='2.2')
+        Extension.objects.create(status=STATUS_PUBLIC)
+        Extension.objects.create(status=STATUS_NULL)
+
+        eq_(list(ExtensionVersion.objects.pending()), [version1, version2])
