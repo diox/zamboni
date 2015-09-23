@@ -1024,7 +1024,7 @@ class TestExtensionNonAPIViews(TestCase):
 
     def _expected_etag(self):
         expected_etag = hashlib.sha256()
-        expected_etag.update(unicode(self.extension.uuid))
+        expected_etag.update(unicode(self.extension.guid))
         expected_etag.update(unicode(self.version.pk))
         return '"%s"' % expected_etag.hexdigest()
 

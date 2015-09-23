@@ -273,15 +273,15 @@ class ExtensionVersionViewSet(CORSMixin, MarketplaceView, CreateExtensionMixin,
 @allow_cross_site_request
 def _download(request, extension, version, path, public=True):
     extension_etag = hashlib.sha256()
-    extension_etag.update(unicode(extension.uuid))
+    extension_etag.update(unicode(extension.guid))
     extension_etag.update(unicode(version.pk))
     return get_file_response(request, path,
                              content_type='application/zip',
                              etag=extension_etag.hexdigest(), public=public)
 
 
-def download_signed(request, uuid, **kwargs):
-    extension = get_object_or_404(Extension.objects.public(), uuid=uuid)
+def download_signed(request, guid, **kwargs):
+    extension = get_object_or_404(Extension.objects.public(), guid=guid)
     version = extension.versions.get(pk=kwargs['version_id'])
 
     log.info('Downloading add-on: %s version %s from %s' % (
@@ -289,8 +289,8 @@ def download_signed(request, uuid, **kwargs):
     return _download(request, extension, version, version.signed_file_path)
 
 
-def download_unsigned(request, uuid, **kwargs):
-    extension = get_object_or_404(Extension, uuid=uuid)
+def download_unsigned(request, guid, **kwargs):
+    extension = get_object_or_404(Extension, guid=guid)
     version = extension.versions.get(pk=kwargs['version_id'])
 
     def is_author():
@@ -309,8 +309,8 @@ def download_unsigned(request, uuid, **kwargs):
 
 
 @allow_cross_site_request
-def mini_manifest(request, uuid, **kwargs):
-    extension = get_object_or_404(Extension, uuid=uuid)
+def mini_manifest(request, guid, **kwargs):
+    extension = get_object_or_404(Extension, guid=guid)
 
     if extension.is_public():
         # Let ETag/Last-Modified be handled by the generic middleware for now.

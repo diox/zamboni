@@ -9,28 +9,27 @@ from mkt.search.serializers import BaseESSerializer
 
 
 class ExtensionVersionSerializer(ModelSerializer):
-    download_url = CharField(source='download_url', read_only=True)
-    unsigned_download_url = CharField(
-        source='unsigned_download_url', read_only=True)
-    status = ReverseChoiceField(
-        choices_dict=STATUS_FILE_CHOICES_API_v2, read_only=True)
+    download_url = CharField(source='download_url')
+    unsigned_download_url = CharField(source='unsigned_download_url')
+    status = ReverseChoiceField(choices_dict=STATUS_FILE_CHOICES_API_v2)
 
     class Meta:
         model = ExtensionVersion
         fields = ['id', 'download_url', 'unsigned_download_url', 'size',
                   'status', 'version']
+        read_only_fields = ['id', 'download_url', 'unsigned_download_url',
+                            'size', 'status', 'version']
 
 
 class ExtensionSerializer(ModelSerializer):
-    description = TranslationSerializerField(read_only=True)
+    description = TranslationSerializerField()
     latest_public_version = ExtensionVersionSerializer(
-        source='latest_public_version', read_only=True)
-    latest_version = ExtensionVersionSerializer(
-        source='latest_version', read_only=True)
-    mini_manifest_url = CharField(source='mini_manifest_url', read_only=True)
-    name = TranslationSerializerField(read_only=True)
+        source='latest_public_version')
+    latest_version = ExtensionVersionSerializer(source='latest_version')
+    mini_manifest_url = CharField(source='mini_manifest_url')
+    name = TranslationSerializerField()
     status = ReverseChoiceField(
-        choices_dict=STATUS_CHOICES_API_v2, read_only=True)
+        choices_dict=STATUS_CHOICES_API_v2)
 
     # FIXME: latest_version potentially expose private data.
     # Nothing extremely major, but maybe we care. Not a fan of moving it to
@@ -40,9 +39,12 @@ class ExtensionSerializer(ModelSerializer):
 
     class Meta:
         model = Extension
-        fields = ['id', 'description', 'disabled', 'last_updated',
+        fields = ['id', 'description', 'disabled', 'guid', 'last_updated',
                   'latest_version', 'latest_public_version',
                   'mini_manifest_url', 'name', 'slug', 'status', ]
+        read_only_fields = ['id', 'description', 'guid', 'last_updated',
+                            'latest_version', 'latest_public_version',
+                            'mini_manifest_url', 'name', 'status']
 
 
 class ESExtensionSerializer(BaseESSerializer, ExtensionSerializer):
@@ -65,11 +67,10 @@ class ESExtensionSerializer(BaseESSerializer, ExtensionSerializer):
         # Set basic attributes we'll need on the fake instance using the data
         # from ES.
         self._attach_fields(
-            obj, data, ('default_language', 'last_updated', 'slug', 'status',
-                        'version'))
+            obj, data, ('default_language', 'guid', 'last_updated', 'slug',
+                        'status', 'version'))
 
         obj.disabled = data['is_disabled']
-        obj.uuid = data['guid']
 
         # Attach translations for all translated attributes.
         # obj.default_language should be set first for this to work.

@@ -54,12 +54,6 @@ class TestExtensionUpload(UploadCreationMixin, UploadTest):
         extension = Extension.objects.create(name=u'Mŷ Ëxtension')
         eq_(extension.slug, u'mŷ-ëxtension')
 
-    def test_auto_create_uuid(self):
-        extension = Extension.objects.create()
-        ok_(extension.uuid)
-        extension2 = Extension.objects.create()
-        ok_(extension.uuid != extension2.uuid)
-
     def test_upload_new(self):
         eq_(Extension.objects.count(), 0)
         upload = self.upload('extension')
@@ -75,7 +69,7 @@ class TestExtensionUpload(UploadCreationMixin, UploadTest):
         eq_(extension.description, u'A Dummÿ Extension')
         eq_(extension.slug, u'my-lîttle-extension')
         eq_(extension.status, STATUS_PENDING)
-        ok_(extension.uuid)
+        eq_(extension.guid, u'FIXME')
 
         version = extension.latest_version
         eq_(version.version, '0.1')
@@ -438,7 +432,7 @@ class TestExtensionStatusChanges(TestCase):
 class TestExtensionVersionMethodsAndProperties(TestCase):
     @override_settings(SITE_URL='https://marketpace.example.com/')
     def test_download_url(self):
-        extension = Extension(pk=40, uuid='abcdef78123456781234567812345678')
+        extension = Extension(pk=40, guid='abcdef78123456781234567812345678')
         version = ExtensionVersion(
             pk=4815162342, extension=extension, version='0.40.0')
         eq_(version.download_url,
@@ -447,7 +441,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
 
     @override_settings(SITE_URL='https://marketpace.example.com/')
     def test_unsigned_download_url(self):
-        extension = Extension(pk=41, uuid='abcdef78123456781234567812345678')
+        extension = Extension(pk=41, guid='abcdef78123456781234567812345678')
         version = ExtensionVersion(
             pk=2432615184, extension=extension, version='0.41.0')
         eq_(version.unsigned_download_url,
@@ -481,7 +475,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
 
     @override_settings(SITE_URL='https://marketpace.example.com/')
     def test_mini_manifest_url(self):
-        extension = Extension(pk=43, uuid='12345678123456781234567812abcdef')
+        extension = Extension(pk=43, guid='12345678123456781234567812abcdef')
         eq_(extension.mini_manifest_url,
             'https://marketpace.example.com/extension/'
             '12345678123456781234567812abcdef/manifest.json')
@@ -498,7 +492,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
             'name': u'Ëxtension',
             'version': '0.44',
         }
-        extension = Extension(pk=44, uuid='abcdefabcdefabcdefabcdefabcdef44')
+        extension = Extension(pk=44, guid='abcdefabcdefabcdefabcdefabcdef44')
         ExtensionVersion(
             pk=1234, extension=extension, manifest=manifest, version='0.44.0')
         eq_(extension.mini_manifest, {})
@@ -512,7 +506,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
             'version': '0.45',
         }
         extension = Extension.objects.create(
-            status=STATUS_PUBLIC, uuid='abcdefabcdefabcdefabcdefabcdef45')
+            status=STATUS_PUBLIC, guid='abcdefabcdefabcdefabcdefabcdef45')
         ExtensionVersion.objects.create(
             extension=extension, manifest={},
             status=STATUS_PENDING, version='0.44.0')
@@ -538,7 +532,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
     def test_sign_and_move_file(self, remove_signed_file_mock,
                                 public_storage_mock, private_storage_mock,
                                 sign_app_mock):
-        extension = Extension(uuid='ab345678123456781234567812345678')
+        extension = Extension(guid='ab345678123456781234567812345678')
         version = ExtensionVersion(extension=extension, pk=123)
         public_storage_mock.size.return_value = 665
         size = version.sign_and_move_file()
@@ -556,9 +550,9 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
 
     @mock.patch('mkt.extensions.models.sign_app')
     @mock.patch('mkt.extensions.models.private_storage')
-    def test_sign_and_move_file_no_uuid(self, private_storage_mock,
+    def test_sign_and_move_file_no_guid(self, private_storage_mock,
                                         sign_app_mock):
-        extension = Extension(uuid='')
+        extension = Extension(guid='')
         version = ExtensionVersion(extension=extension)
         with self.assertRaises(SigningError):
             version.sign_and_move_file()
@@ -567,7 +561,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
     @mock.patch('mkt.extensions.models.private_storage')
     def test_sign_and_move_file_no_version_pk(self, private_storage_mock,
                                               sign_app_mock):
-        extension = Extension(uuid='12345678123456781234567812345678')
+        extension = Extension(guid='12345678123456781234567812345678')
         version = ExtensionVersion(extension=extension)
         with self.assertRaises(SigningError):
             version.sign_and_move_file()
@@ -577,7 +571,7 @@ class TestExtensionVersionMethodsAndProperties(TestCase):
     @mock.patch.object(ExtensionVersion, 'remove_signed_file')
     def test_sign_and_move_file_error(self, remove_signed_file_mock,
                                       private_storage_mock, sign_app_mock):
-        extension = Extension(uuid='12345678123456781234567812345678')
+        extension = Extension(guid='12345678123456781234567812345678')
         version = ExtensionVersion(extension=extension, pk=123)
         sign_app_mock.side_effect = SigningError
         with self.assertRaises(SigningError):

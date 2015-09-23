@@ -72,7 +72,7 @@ class TestExtensionIndexer(TestCase):
         eq_(doc['id'], extension.id)
         eq_(doc['created'], extension.created)
         eq_(doc['default_language'], extension.default_language)
-        eq_(doc['guid'], extension.uuid)
+        eq_(doc['guid'], extension.guid)
         eq_(doc['is_disabled'], extension.disabled)
         eq_(doc['last_updated'], extension.last_updated)
         eq_(doc['modified'], extension.modified)

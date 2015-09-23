@@ -109,11 +109,10 @@ class ExtensionIndexer(BaseIndexer):
         # Attach translations for searching and indexing.
         attach_trans_dict(cls.get_model(), [obj])
 
-        attrs = ('created', 'default_language', 'id', 'last_updated',
+        attrs = ('created', 'default_language', 'guid', 'id', 'last_updated',
                  'modified', 'slug', 'status')
         doc = dict(zip(attrs, attrgetter(*attrs)(obj)))
 
-        doc['guid'] = unicode(obj.uuid)
         doc['is_disabled'] = obj.disabled
         if obj.status == STATUS_PUBLIC:
             doc['latest_public_version'] = {

@@ -13,7 +13,6 @@ from django_extensions.db.fields.json import JSONField
 from django_statsd.clients import statsd
 from rest_framework.exceptions import ParseError
 from tower import ugettext as _
-from uuidfield.fields import UUIDField
 
 from lib.crypto.packaged import sign_app, SigningError
 from mkt.constants.base import (STATUS_CHOICES, STATUS_FILE_CHOICES,
@@ -57,7 +56,8 @@ class Extension(ModelBase):
     last_updated = models.DateTimeField(blank=True, db_index=True, null=True)
     status = models.PositiveSmallIntegerField(
         choices=STATUS_CHOICES.items(), default=STATUS_NULL)
-    uuid = UUIDField(auto=True)
+    guid = models.CharField(blank=False, editable=False, max_length=255,
+        unique=True)
 
     # Fields for which the manifest is the source of truth - can't be
     # overridden by the API.
@@ -202,7 +202,7 @@ class Extension(ModelBase):
     @property
     def mini_manifest_url(self):
         return absolutify(reverse('extension.mini_manifest',
-                                  kwargs={'uuid': self.uuid}))
+                                  kwargs={'guid': self.guid}))
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -276,7 +276,7 @@ class ExtensionVersion(ModelBase):
     def download_url(self):
         kwargs = {
             'filename': self.filename,
-            'uuid': self.extension.uuid,
+            'guid': self.extension.guid,
             'version_id': self.pk,
         }
         return absolutify(reverse('extension.download_signed', kwargs=kwargs))
@@ -422,8 +422,8 @@ class ExtensionVersion(ModelBase):
         storage.
 
         Return the file size."""
-        if not self.extension.uuid:
-            raise SigningError('Need uuid to be set to sign')
+        if not self.extension.guid:
+            raise SigningError('Need guid to be set to sign')
         if not self.pk:
             raise SigningError('Need version pk to be set to sign')
 
@@ -431,7 +431,7 @@ class ExtensionVersion(ModelBase):
             # 'id' needs to be an unique identifier not shared with anything
             # else (other extensions, langpacks, webapps...), but should not
             # change when there is an update.
-            'id': self.extension.uuid,
+            'id': self.extension.guid,
             # 'version' should be an integer and should be monotonically
             # increasing.
             'version': self.pk
@@ -461,7 +461,7 @@ class ExtensionVersion(ModelBase):
     def unsigned_download_url(self):
         kwargs = {
             'filename': self.filename,
-            'uuid': self.extension.uuid,
+            'guid': self.extension.guid,
             'version_id': self.pk,
         }
         return absolutify(
