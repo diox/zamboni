@@ -139,7 +139,7 @@ def get_locale_from_lang(lang):
 
 
 @contextlib.contextmanager
-def no_translation(lang=None):
+def activate_language(lang):
     """
     Activate the settings lang, or lang provided, while in context.
     """

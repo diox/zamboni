@@ -10,7 +10,7 @@ from rest_framework.parsers import JSONParser, XMLParser
 import mkt.constants.iarc_mappings as mappings
 from mkt.constants import ratingsbodies
 from mkt.site.helpers import strip_controls
-from mkt.translations.utils import no_translation
+from mkt.translations.utils import activate_language
 
 log = commonware.log.getLogger('z.iarc')
 
@@ -39,7 +39,7 @@ def get_iarc_app_title(app):
     """Delocalized app name."""
     from mkt.webapps.models import Webapp
 
-    with no_translation(app.default_locale):
+    with activate_language(app.default_locale):
         delocalized_app = Webapp.with_deleted.get(pk=app.pk)
 
     return unicode(delocalized_app.name)

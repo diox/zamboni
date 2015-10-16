@@ -190,19 +190,21 @@ class TestExtensionViewSetPost(UploadTest, RestOAuth):
         data = response.json
 
         eq_(data['author'], u'Mozillâ')
-        eq_(data['description'], {'en-US': u'A Dummÿ Extension'})
+        # The extension.zip package has "default_locale": "en_GB".
+        eq_(data['description'], {'en-GB': u'A Dummÿ Extension'})
         eq_(data['device_types'], ['firefoxos'])
         eq_(data['disabled'], False)
         eq_(data['last_updated'], None)  # The extension is not public yet.
         eq_(data['latest_version']['size'], 268)
         eq_(data['latest_version']['version'], '0.1')
-        eq_(data['name'], {'en-US': u'My Lîttle Extension'})
+        eq_(data['name'], {'en-GB': u'My Lîttle Extension'})
         eq_(data['slug'], u'my-lîttle-extension')
         eq_(data['status'], 'pending')
         eq_(Extension.objects.without_deleted().count(), 1)
         eq_(ExtensionVersion.objects.without_deleted().count(), 1)
         extension = Extension.objects.without_deleted().get(pk=data['id'])
         eq_(extension.status, STATUS_PENDING)
+        eq_(extension.default_language, 'en-GB')
         eq_(list(extension.authors.all()), [self.user])
 
         note = extension.threads.get().notes.get()

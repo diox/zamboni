@@ -29,7 +29,7 @@ from mkt.site.models import ManagerBase, ModelBase
 from mkt.site.storage_utils import (copy_stored_file, private_storage,
                                     public_storage)
 from mkt.site.utils import cached_property, smart_path
-from mkt.translations.utils import to_language
+from mkt.translations.utils import activate_language, to_language
 from mkt.webapps.models import clean_slug
 
 
@@ -190,7 +190,8 @@ class Extension(ModelBase):
         data = cls.extract_manifest_fields(manifest_contents)
 
         # Build a new instance.
-        instance = cls.objects.create(**data)
+        with activate_language(data.get('default_language')):
+            instance = cls.objects.create(**data)
 
         # Now that the instance has been saved, we can add the author and start
         # saving version data. If everything checks out, a status will be set
@@ -301,7 +302,8 @@ class Extension(ModelBase):
         # We need to re-extract the fields from manifest contents because some
         # fields like default_language are transformed before being stored.
         data = self.extract_manifest_fields(version.manifest)
-        return self.update(**data)
+        with activate_language(data.get('default_language')):
+            return self.update(**data)
 
     def update_status_according_to_versions(self):
         """Update `status`, `latest_version` and `latest_public_version`
@@ -436,7 +438,8 @@ class ExtensionVersion(ModelBase):
         # Build a new instance.
         try:
             with transaction.atomic():
-                instance = cls.objects.create(**data)
+                with activate_language(data.get('default_language')):
+                    instance = cls.objects.create(**data)
         except IntegrityError:
             raise ParseError(
                 _(u'An Add-on with this version number already exists.'))
@@ -662,7 +665,8 @@ class ExtensionVersion(ModelBase):
         if not self.deleted:
             return False
         data = Extension.extract_manifest_fields(self.manifest, ('version',))
-        self.update(deleted=False, **data)
+        with activate_language(data.get('default_language')):
+            self.update(deleted=False, **data)
         return True
 
     def __unicode__(self):

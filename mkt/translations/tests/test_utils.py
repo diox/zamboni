@@ -5,8 +5,8 @@ from nose.tools import eq_
 
 from mkt.site.tests import TestCase
 from mkt.translations.models import Translation
-from mkt.translations.utils import (find_language, no_translation, to_language,
-                                    transfield_changed, truncate,
+from mkt.translations.utils import (activate_language, find_language,
+                                    to_language, transfield_changed, truncate,
                                     truncate_text)
 
 
@@ -89,17 +89,17 @@ class TranslationUtilsTests(TestCase):
         for a, b in tests:
             yield check, a, b
 
-    def test_no_translation(self):
+    def test_activate_language(self):
         """
-        `no_translation` provides a context where only the default
+        `activate_language` provides a context where only the default
         language is active.
         """
         lang = translation.get_language()
         translation.activate('pt-br')
-        with no_translation():
+        with activate_language():
             eq_(translation.get_language(), settings.LANGUAGE_CODE)
         eq_(translation.get_language(), 'pt-br')
-        with no_translation('es'):
+        with activate_language('es'):
             eq_(translation.get_language(), 'es')
         eq_(translation.get_language(), 'pt-br')
         translation.activate(lang)

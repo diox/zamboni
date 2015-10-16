@@ -23,7 +23,7 @@ from mkt.site.helpers import absolutify
 from mkt.submit.forms import mark_for_rereview
 from mkt.submit.serializers import PreviewSerializer, SimplePreviewSerializer
 from mkt.tags.models import attach_tags
-from mkt.translations.utils import no_translation
+from mkt.translations.utils import activate_language
 from mkt.versions.models import Version
 from mkt.webapps.models import (AddonUpsell, AppFeatures, Geodata, Preview,
                                 Webapp)
@@ -281,7 +281,7 @@ class AppSerializer(serializers.ModelSerializer):
         return attrs
 
     def get_device_types(self, app):
-        with no_translation():
+        with activate_language():
             return [n.api_name for n in app.device_types]
 
     def save_device_types(self, obj, new_types):

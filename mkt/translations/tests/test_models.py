@@ -109,7 +109,7 @@ class TranslationTestCase(TestCase):
         trans_eq(o.name, 'some name', 'en-US')
         trans_eq(o.description, 'some description', 'en-US')
 
-    def test_fetch_no_translations(self):
+    def test_fetch_activate_languages(self):
         """Make sure models with no translations aren't harmed."""
         o = self.UntranslatedModel.objects.get(id=1)
         eq_(o.number, 17)
