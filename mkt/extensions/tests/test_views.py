@@ -648,15 +648,22 @@ class TestExtensionSearchView(RestOAuth, ESTestCase):
         eq_(data['status'], 'public')
         eq_(data['uuid'], self.extension.uuid)
 
-    def test_list(self):
+    @mock.patch('mkt.extensions.models.ExtensionVersion.sign_file')
+    @mock.patch.object(ExtensionVersion, 'remove_public_signed_file')
+    def test_list(self, sign_file_mock, remove_public_signed_file_mock):
+        remove_public_signed_file_mock.return_value = 666
+        sign_file_mock.return_value = 666
         self.extension2 = Extension.objects.create(name=u'Mŷ Second Extension')
         self.version2 = ExtensionVersion.objects.create(
-            extension=self.extension2, status=STATUS_PUBLIC, version='1.2.3')
+            extension=self.extension2, status=STATUS_PENDING, version='1.2.3')
+
+        self.version2.publish()
+        self.version2.reject()
         self.refresh('extension')
         with self.assertNumQueries(0):
             response = self.anon.get(self.url)
         eq_(response.status_code, 200)
-        eq_(len(response.json['objects']), 2)
+        eq_(len(response.json['objects']), 1)
 
     def test_query(self):
         self.extension2 = Extension.objects.create(name=u'Superb Extensiôn')
